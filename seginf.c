@@ -18,7 +18,8 @@
 
 typedef struct rule__ {
 	unsigned int action;
-	int src_port, dst_port, protocol, rule_id;
+	int src_port, dst_port, rule_id;
+	__u8 protocol;
 	struct rule__ *next;
 	char src[16];
 	char dst[16];
@@ -47,7 +48,7 @@ unsigned int seginf_hook(unsigned int hooknum,
 		
 	rule *cur;
 	int sport = -1, dport = -1;
-	unsigned int proto;
+	__u8 proto;
 	
 	if( !skb ) return NF_ACCEPT;
 	
@@ -63,21 +64,23 @@ unsigned int seginf_hook(unsigned int hooknum,
 		else
 			tcp_hdr__ = (struct tcphdr*)(skb_transport_header(skb));
 
-		sport = ntohs(tcp_hdr__->source);
-		dport = ntohs(tcp_hdr__->dest);
+		sport = (int)ntohs(tcp_hdr__->source);
+		dport = (int)ntohs(tcp_hdr__->dest);
 	} else if( proto == IPPROTO_UDP ){
 		if( skb_network_header(skb) == skb_transport_header(skb) )
 			udp_hdr__ = (struct udphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
 		else
 			udp_hdr__ = (struct udphdr*)(skb_transport_header(skb));
 			
-		sport = ntohs(udp_hdr__->source);
-		dport = ntohs(udp_hdr__->dest);
+		sport = (int)ntohs(udp_hdr__->source);
+		dport = (int)ntohs(udp_hdr__->dest);
 	}
 	
-	//printk( KERN_INFO "filtering..\n\t%s:%d\n", src__, sport );
-	//printk( KERN_INFO "\t%s:%d\n", dst__, dport );
-	
+	printk( KERN_INFO "filtering..\n\t%s:%d\n", src__, sport );
+	printk( KERN_INFO "\t%s:%d\n", dst__, dport );
+
+	if( sport == -1 || dport == -1 ) printk( KERN_INFO "%d\n", (int)proto );	
+
 	cur = head;
 	while( cur != NULL ){
 		if( cur->action != default_policy ){
@@ -121,10 +124,10 @@ int seginf_write(struct file *file, const char *buffer,
 		}
 		
 		while( true ){
-			aux->ruleid = aux->ruleid - 1;
-			if( aux->ruleid == wntd ){
+			aux->rule_id = aux->rule_id - 1;
+			if( aux->rule_id == wntd ){
 				nxt = aux->next;
-				aux->nxt = nxt->next;
+				aux->next = nxt->next;
 				kfree( nxt );
 				break;
 			}
@@ -247,8 +250,8 @@ int seginf_write(struct file *file, const char *buffer,
 
 		newrule->next = head;
 		head = newrule;
-		if( newrule->next == NULL ) newrule->ruleid = 0;
-		else newrule->ruleid = newrule->next->ruleid+1;
+		if( newrule->next == NULL ) newrule->rule_id = 0;
+		else newrule->rule_id = newrule->next->rule_id+1;
 	}
 	return len;
 }
