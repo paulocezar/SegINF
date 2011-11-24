@@ -1,0 +1,19 @@
+Para instalar o modulo basta executar os comandos 
+	make
+e
+	insmod seginf.ko
+
+-----
+Para desinstalar, basta executar o comando
+	rmmod seginf.ko
+
+-----
+O modulo funciona em dois modos
+	0 - default deny --  todos os pacotes sao rejeitados.
+	1 - default permit -- todos os pacotes sao aceitos.
+
+Por padrao o modulo e executado no modo 'default deny'.
+Para alterar o modo de funcionamento do modulo, e usado o comando
+	echo [modo de funcionamento] > /proc/seginf
+
+
