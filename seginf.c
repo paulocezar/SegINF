@@ -18,23 +18,18 @@
 
 typedef struct rule__ {
 	unsigned int action;
-	int src_port, dst_port, protocol;
+	int src_port, dst_port, protocol, rule_id;
+	struct rule__ *next;
 	char src[16];
 	char dst[16];
 } rule;
 
-typedef struct rule_node__ {
-	rule* rule;
-	struct rule_node__* next;
-} rule_node;
-
-
 char src__[16], dst__[16];
-static rule_node *head = NULL;
+
+static rule *head = NULL;
 struct iphdr *ip_hdr__;
 struct tcphdr *tcp_hdr__;
 struct udphdr *udp_hdr__;
-
 
 struct nf_hook_ops seginf_rules_in;
 struct nf_hook_ops seginf_rules_out;    
@@ -50,7 +45,6 @@ unsigned int seginf_hook(unsigned int hooknum,
 		      			)
 {
 		
-	rule_node *cur_node;
 	rule *cur;
 	int sport = -1, dport = -1;
 	unsigned int proto;
@@ -64,11 +58,19 @@ unsigned int seginf_hook(unsigned int hooknum,
 	sprintf( dst__, "%pI4", &(ip_hdr__->daddr) );
 	
 	if( proto == IPPROTO_TCP ){
-		tcp_hdr__ = (struct tcphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
+		if( skb_network_header(skb) == skb_transport_header(skb) ) 
+			tcp_hdr__ = (struct tcphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
+		else
+			tcp_hdr__ = (struct tcphdr*)(skb_transport_header(skb));
+
 		sport = ntohs(tcp_hdr__->source);
 		dport = ntohs(tcp_hdr__->dest);
 	} else if( proto == IPPROTO_UDP ){
-		udp_hdr__ = (struct udphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
+		if( skb_network_header(skb) == skb_transport_header(skb) )
+			udp_hdr__ = (struct udphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
+		else
+			udp_hdr__ = (struct udphdr*)(skb_transport_header(skb));
+			
 		sport = ntohs(udp_hdr__->source);
 		dport = ntohs(udp_hdr__->dest);
 	}
@@ -76,26 +78,20 @@ unsigned int seginf_hook(unsigned int hooknum,
 	//printk( KERN_INFO "filtering..\n\t%s:%d\n", src__, sport );
 	//printk( KERN_INFO "\t%s:%d\n", dst__, dport );
 	
-	cur_node = head;
-	while( cur_node != NULL ){
-		cur = cur_node->rule;
+	cur = head;
+	while( cur != NULL ){
 		if( cur->action != default_policy ){
 			
 			if( strcmp(src__,cur->src) && (*(cur->src)) ) goto next_one__;
-			//printk(KERN_INFO "PASSOU PELO SRC IP\n");
 			if( strcmp(dst__,cur->dst) && (*(cur->dst)) ) goto next_one__;
-			//printk(KERN_INFO "PASSOU PELO DST IP\n");
 			if( (proto != cur->protocol) && (cur->protocol != -1) ) goto next_one__;
-			//printk(KERN_INFO "PASSOU PELO PROTOCOL\n");
 			if( (dport != cur->dst_port) && (cur->dst_port != -1) ) goto next_one__;
-			//printk(KERN_INFO "PASSOU PELO DST PORT\n");
 			if( (sport != cur->src_port) && (cur->src_port != -1) ) goto next_one__;
-			//printk(KERN_INFO "PASSOU PELO SRC PORT\n");
 			
 			return cur->action;
 		}
 next_one__:
-		cur_node = cur_node->next;
+		cur = cur->next;
 	}
 	
 	return default_policy;
@@ -110,18 +106,39 @@ int seginf_write(struct file *file, const char *buffer,
 		return -ENOSPC;
 	}
  
-	/*if(copy_from_user(&userData, buffer, len)){
-		printk(KERN_INFO "SegINF: cannot copy data from userspace..\n");
-		return -EFAULT;
-	}*/
 	if( buffer[0] == 'd' ){
 		if( buffer[8] == 'd' ) default_policy = NF_DROP;
 		else default_policy = NF_ACCEPT;
+	} else if( buffer[0] == 'r' ){
+		
+		int wntd = 0;
+		int pos = 7;
+		rule *nxt, *aux = head;
+		
+		while( buffer[pos] != ' ' ){
+			wntd = 10*wntd + (buffer[pos]-'0');
+			pos++;
+		}
+		
+		while( true ){
+			aux->ruleid = aux->ruleid - 1;
+			if( aux->ruleid == wntd ){
+				nxt = aux->next;
+				aux->nxt = nxt->next;
+				kfree( nxt );
+				break;
+			}
+			aux = aux->next;
+		}
+		
 	} else {
-				
-		rule *newrule = (rule*) kmalloc( sizeof(rule), GFP_USER );	
-		rule_node *new_rule_node;
-		int pos, j, beg, sz;
+		int pos, j, beg, sz;		
+		rule *newrule = (rule*) kmalloc( sizeof(rule), GFP_KERNEL );
+		
+		if( newrule == NULL ){
+			printk(KERN_INFO "SegINF: cannot allow space for data..\n");
+			return -ENOSPC;
+		}		
 		
 		if( buffer[0] == 'b' ) newrule->action = NF_DROP;
 		else newrule->action = NF_ACCEPT;
@@ -174,13 +191,47 @@ int seginf_write(struct file *file, const char *buffer,
 					while( buffer[pos] != ' ' ) pos++;
 					sz = pos-beg;
 					
-					if( !strncmp(buffer+beg, "IPPROTO_TCP", sz ) )
+					if( !strncmp(buffer+beg, "IPPROTO_ICMP", sz ) )
+						newrule->protocol = IPPROTO_ICMP;
+					else if( !strncmp(buffer+beg, "IPPROTO_IGMP", sz ) )
+						newrule->protocol = IPPROTO_IGMP;
+					else if( !strncmp(buffer+beg, "IPPROTO_IPIP", sz ) )
+						newrule->protocol = IPPROTO_IPIP;
+					else if( !strncmp(buffer+beg, "IPPROTO_TCP", sz ) )
 						newrule->protocol = IPPROTO_TCP;
+					else if( !strncmp(buffer+beg, "IPPROTO_EGP", sz ) )
+						newrule->protocol = IPPROTO_EGP;
+					else if( !strncmp(buffer+beg, "IPPROTO_PUP", sz ) )
+						newrule->protocol = IPPROTO_PUP;
 					else if( !strncmp(buffer+beg, "IPPROTO_UDP", sz ) )
 						newrule->protocol = IPPROTO_UDP;
-					else if( !strncmp(buffer+beg, "IPPROTO_ICMP", sz ) )
-						newrule->protocol = IPPROTO_ICMP;
-						
+					else if( !strncmp(buffer+beg, "IPPROTO_IDP", sz ) )
+						newrule->protocol = IPPROTO_IDP;
+					else if( !strncmp(buffer+beg, "IPPROTO_DCCP", sz ) )
+						newrule->protocol = IPPROTO_DCCP;
+					else if( !strncmp(buffer+beg, "IPPROTO_RSVP", sz ) )
+						newrule->protocol = IPPROTO_RSVP;
+					else if( !strncmp(buffer+beg, "IPPROTO_GRE", sz ) )
+						newrule->protocol = IPPROTO_GRE;
+					else if( !strncmp(buffer+beg, "IPPROTO_IPV6", sz ) )
+						newrule->protocol = IPPROTO_IPV6;
+					else if( !strncmp(buffer+beg, "IPPROTO_ESP", sz ) )
+						newrule->protocol = IPPROTO_ESP;
+					else if( !strncmp(buffer+beg, "IPPROTO_AH", sz ) )
+						newrule->protocol = IPPROTO_AH;
+					else if( !strncmp(buffer+beg, "IPPROTO_BEETPH", sz ) )
+						newrule->protocol = IPPROTO_BEETPH;
+					else if( !strncmp(buffer+beg, "IPPROTO_PIM", sz ) )
+						newrule->protocol = IPPROTO_PIM;
+					else if( !strncmp(buffer+beg, "IPPROTO_COMP", sz ) )
+						newrule->protocol = IPPROTO_COMP;
+					else if( !strncmp(buffer+beg, "IPPROTO_SCTP", sz ) )
+						newrule->protocol = IPPROTO_SCTP;
+					else if( !strncmp(buffer+beg, "IPPROTO_UDPLITE", sz ) )
+						newrule->protocol = IPPROTO_UDPLITE;
+					else if( !strncmp(buffer+beg, "IPPROTO_RAW", sz ) )
+						newrule->protocol = IPPROTO_RAW;
+					
 					break;
 			}
 		}
@@ -194,10 +245,10 @@ int seginf_write(struct file *file, const char *buffer,
 		printk( KERN_INFO "ACTIOn: %u\n", newrule->action );
 */	
 
-		new_rule_node = (rule_node*)kmalloc(sizeof(rule_node), GFP_USER);
-		new_rule_node->rule = newrule;
-		new_rule_node->next = head;
-		head = new_rule_node;
+		newrule->next = head;
+		head = newrule;
+		if( newrule->next == NULL ) newrule->ruleid = 0;
+		else newrule->ruleid = newrule->next->ruleid+1;
 	}
 	return len;
 }

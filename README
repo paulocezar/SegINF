@@ -16,6 +16,9 @@ Para alterar a politica padrao use o comando:
 	echo "default deny" > /proc/seginf
 	echo "default accept" > /proc/seginf
 	
+Para remover uma regra
+	echo "remove [rule_id]" > /proc/seginf
+	
 obs.: Nos comandos para adicionar regras, todas as opcoes, inclusive a ultima, devem ser seguidas por um espaco em branco.
 	Por exemplo, para bloquear a comunicacao usando o protocolo TCP, o comando usado seria:
 		echo "block -p IPPROTO_TCP " > /proc/seginf
