@@ -78,7 +78,6 @@ unsigned int seginf_hook(unsigned int hooknum,
 	
 	printk( KERN_INFO "filtering..\n\t%s:%d\n", src__, sport );
 	printk( KERN_INFO "\t%s:%d\n", dst__, dport );
-
 	if( sport == -1 || dport == -1 ) printk( KERN_INFO "%d\n", (int)proto );	
 
 	cur = head;
@@ -123,12 +122,39 @@ int seginf_write(struct file *file, const char *buffer,
 			pos++;
 		}
 		
-		while( true ){
+		while( true ){	
+			
+			if( wntd == head->rule_id ){
+				head = head->next;
+				printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", aux->action, aux->src,
+										aux->src_port, aux->dst, aux->dst_port, aux->protocol );
+				kfree( aux );
+				break;
+			}
+
+			if( wntd == 1 ){
+				nxt = NULL;
+				while( 1 != aux->rule_id ){
+					nxt = aux;
+					aux->rule_id = aux->rule_id - 1;
+					aux = aux->next;
+				}
+				if( nxt != NULL ) nxt->next = NULL;
+				printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", aux->action, aux->src,
+										aux->src_port, aux->dst, aux->dst_port, aux->protocol );
+				kfree( aux );
+				break;
+			}
+
 			aux->rule_id = aux->rule_id - 1;
 			if( aux->rule_id == wntd ){
 				nxt = aux->next;
-				aux->next = nxt->next;
-				kfree( nxt );
+				if( nxt != NULL ){
+					aux->next = nxt->next;
+					printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", nxt->action, nxt->src,
+										nxt->src_port, nxt->dst, nxt->dst_port, nxt->protocol );
+					kfree( nxt );
+				} else kfree( aux );
 				break;
 			}
 			aux = aux->next;
@@ -239,18 +265,17 @@ int seginf_write(struct file *file, const char *buffer,
 			}
 		}
 
-/*		printk( KERN_INFO "adicionou regra: \n");
+		printk( KERN_INFO "adicionou regra: \n");
 		printk( KERN_INFO "SRC: %s\n", newrule->src );
 		printk( KERN_INFO "DST: %s\n", newrule->dst );
 		printk( KERN_INFO "SRC PRT: %d\n", newrule->src_port );
 		printk( KERN_INFO "DST PRT: %d\n", newrule->dst_port );
 		printk( KERN_INFO "PROTOCOL: %d\n", newrule->protocol );
-		printk( KERN_INFO "ACTIOn: %u\n", newrule->action );
-*/	
+		printk( KERN_INFO "ACTIOn: %u\n", newrule->action );	
 
 		newrule->next = head;
 		head = newrule;
-		if( newrule->next == NULL ) newrule->rule_id = 0;
+		if( newrule->next == NULL ) newrule->rule_id = 1;
 		else newrule->rule_id = newrule->next->rule_id+1;
 	}
 	return len;
@@ -293,6 +318,13 @@ int init_module()
 
 void cleanup_module()
 {
+	rule *nxt;
+	while( head != NULL ){
+		nxt = head->next;
+		kfree( head );
+		head = nxt;
+	}
+
 	nf_unregister_hook(&seginf_rules_in);
 	nf_unregister_hook(&seginf_rules_out);
 
