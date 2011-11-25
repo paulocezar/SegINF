@@ -1,26 +1,9 @@
-Para instalar o modulo basta executar os comandos 
-	make
-e
-	insmod seginf.ko
+Para iniciar o firewall SegINF obtenha permissao de root e execute o stript
 
------
-Para desinstalar, basta executar o comando
-	rmmod seginf.ko
+	'seginf_start.sh'
 
------
-Para adicionar regras ao modulo use os comando:
-	echo "allow [-i in_addres] [-o out_addres] [-s in_port] [-d out_port] [-p protocol]" > /proc/seginf
-	echo "block [-i in_addres] [-o out_addres] [-s in_port] [-d out_port] [-p protocol]" > /proc/seginf
+Para excluir uma regra, basta clicar sobre a mesma.
+Uma janela de confirmacao aparecera para evitar que regras sejam removidas acidentalmente.
 
-Para alterar a politica padrao use o comando:
-	echo "default deny" > /proc/seginf
-	echo "default accept" > /proc/seginf
-	
-Para remover uma regra
-	echo "remove [rule_id]" > /proc/seginf
-	
-obs.: Nos comandos para adicionar regras, todas as opcoes, inclusive a ultima, devem ser seguidas por um espaco em branco.
-	Por exemplo, para bloquear a comunicacao usando o protocolo TCP, o comando usado seria:
-		echo "block -p IPPROTO_TCP " > /proc/seginf
-	Para permitir pacotes usando o protocolo TCP na porta 25, o comando seria:
-		echo "allow -p IPPROTO_TCP -s 25 -d 25 " > /proc/seginf
+
+

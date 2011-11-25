@@ -1,9 +1,15 @@
 #!/bin/bash
 
+cd core
 make
-sudo insmod seginf.ko
+insmod seginf.ko
+cd ..
 
 java -jar GUI/SegINF\ Firewall/dist/"SegINF Firewall.jar" 
 
+cd core
 make clean
+cd ..
+
 rmmod seginf
+
