@@ -1,0 +1,4 @@
+permit
+Bloquear XXX A B * IGMP 
+Aceitar * * * * TCP 
+Aceitar * * * * * 
