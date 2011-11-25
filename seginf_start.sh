@@ -2,8 +2,8 @@
 
 make
 sudo insmod seginf.ko
+
+java -jar GUI/SegINF\ Firewall/dist/"SegINF Firewall.jar" 
+
 make clean
-
-java -jar "SegINF Firewall.jar"
-
-
+rmmod seginf
