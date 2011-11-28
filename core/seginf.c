@@ -18,8 +18,7 @@
 
 typedef struct rule__ {
 	unsigned int action;
-	int src_port, dst_port, rule_id;
-	short protocol;
+	int src_port, dst_port, rule_id, protocol;
 	struct rule__ *next;
 	char src[16];
 	char dst[16];
@@ -47,18 +46,17 @@ unsigned int seginf_hook(unsigned int hooknum,
 {
 		
 	rule *cur;
-	int sport = -1, dport = -1;
-	short proto;
+	int proto = -1, sport = -1, dport = -1;
 	
 	if( !skb ) return NF_ACCEPT;
 	
 	ip_hdr__ = (struct iphdr *)skb_network_header(skb);
 	
-	proto = (short)ip_hdr__->protocol;
+	proto = ip_hdr__->protocol;
 	sprintf( src__, "%pI4", &(ip_hdr__->saddr) );
 	sprintf( dst__, "%pI4", &(ip_hdr__->daddr) );
 	
-	if( proto == (short)IPPROTO_TCP ){
+	if( proto == IPPROTO_TCP ){
 		if( skb_network_header(skb) == skb_transport_header(skb) ) 
 			tcp_hdr__ = (struct tcphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
 		else
@@ -66,7 +64,7 @@ unsigned int seginf_hook(unsigned int hooknum,
 
 		sport = (int)ntohs(tcp_hdr__->source);
 		dport = (int)ntohs(tcp_hdr__->dest);
-	} else if( proto == (short)IPPROTO_UDP ){
+	} else if( proto == IPPROTO_UDP ){
 		if( skb_network_header(skb) == skb_transport_header(skb) )
 			udp_hdr__ = (struct udphdr*)(skb_transport_header(skb)+ip_hdrlen(skb));
 		else
@@ -78,7 +76,6 @@ unsigned int seginf_hook(unsigned int hooknum,
 	
 	printk( KERN_INFO "filtering..\n\t%s:%d\n", src__, sport );
 	printk( KERN_INFO "\t%s:%d\n", dst__, dport );
-	if( sport == -1 || dport == -1 ) printk( KERN_INFO "%d\n", (int)proto );	
 
 	cur = head;
 	while( cur != NULL ){
@@ -86,7 +83,7 @@ unsigned int seginf_hook(unsigned int hooknum,
 			
 			if( strcmp(src__,cur->src) && (*(cur->src)) ) goto next_one__;
 			if( strcmp(dst__,cur->dst) && (*(cur->dst)) ) goto next_one__;
-			if( (proto != (short)cur->protocol) && (cur->protocol != -1) ) goto next_one__;
+			if( (proto != cur->protocol) && (cur->protocol != -1) ) goto next_one__;
 			if( (dport != cur->dst_port) && (cur->dst_port != -1) ) goto next_one__;
 			if( (sport != cur->src_port) && (cur->src_port != -1) ) goto next_one__;
 		printk(KERN_INFO "matched rule %d\n", cur->rule_id );	
@@ -126,7 +123,7 @@ int seginf_write(struct file *file, const char *buffer,
 			
 			if( wntd == head->rule_id ){
 				head = head->next;
-				printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", aux->action, aux->src,
+				printk(KERN_INFO "removendo: %u %s:%d %s:%d %d\n", aux->action, aux->src,
 										aux->src_port, aux->dst, aux->dst_port, aux->protocol );
 				kfree( aux );
 				break;
@@ -140,7 +137,7 @@ int seginf_write(struct file *file, const char *buffer,
 					aux = aux->next;
 				}
 				if( nxt != NULL ) nxt->next = NULL;
-				printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", aux->action, aux->src,
+				printk(KERN_INFO "removendo: %u %s:%d %s:%d %d\n", aux->action, aux->src,
 										aux->src_port, aux->dst, aux->dst_port, aux->protocol );
 				kfree( aux );
 				break;
@@ -151,7 +148,7 @@ int seginf_write(struct file *file, const char *buffer,
 				nxt = aux->next;
 				if( nxt != NULL ){
 					aux->next = nxt->next;
-					printk(KERN_INFO "removendo: %u %s:%d %s:%d %u\n", nxt->action, nxt->src,
+					printk(KERN_INFO "removendo: %u %s:%d %s:%d %d\n", nxt->action, nxt->src,
 										nxt->src_port, nxt->dst, nxt->dst_port, nxt->protocol );
 					kfree( nxt );
 				} else kfree( aux );
@@ -271,7 +268,7 @@ int seginf_write(struct file *file, const char *buffer,
 		printk( KERN_INFO "SRC PRT: %d\n", newrule->src_port );
 		printk( KERN_INFO "DST PRT: %d\n", newrule->dst_port );
 		printk( KERN_INFO "PROTOCOL: %d\n", newrule->protocol );
-		printk( KERN_INFO "ACTIOn: %u\n", newrule->action );	
+		printk( KERN_INFO "ACTION: %u\n", newrule->action );	
 
 		newrule->next = head;
 		head = newrule;

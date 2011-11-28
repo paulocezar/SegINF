@@ -5,5 +5,5 @@ Para iniciar o firewall SegINF obtenha permissao de root e execute o stript
 Para excluir uma regra, basta clicar sobre a mesma.
 Uma janela de confirmacao aparecera para evitar que regras sejam removidas acidentalmente.
 
-
+Ao adicionar uma regra preencha apenas os campos de interesse, deixando os outros com *.
 
